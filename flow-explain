@@ -4,7 +4,9 @@ Let's walk through the flow of the WebSocket application step by step, from the 
 1. Client Establishes a WebSocket Connection
 Client-Side (index.html)
 User clicks the "Connect" button:
+
    <button id="connect" onclick="connect();">Connect</button>
+
 JavaScript connect() function is called:
    function connect() {
        var socket = new SockJS('/gs-guide-websocket');
@@ -20,7 +22,8 @@ JavaScript connect() function is called:
 
 Create a SockJS client:
 
- var socket = new SockJS('/gs-guide-websocket');
+var socket = new SockJS('/gs-guide-websocket');
+
 This line initializes a SockJS client that will connect to the endpoint /gs-guide-websocket.
 
 Wrap the SockJS client with STOMP:
@@ -28,11 +31,20 @@ Wrap the SockJS client with STOMP:
 stompClient = Stomp.over(socket);
 STOMP provides a higher-level protocol for messaging over WebSocket.
 
-Connect to the server: javascript stompClient.connect({}, function (frame) { setConnected(true); console.log('Connected: ' + frame); stompClient.subscribe('/topic/greetings', function (greeting) { showGreeting(JSON.parse(greeting.body).content); }); }); The connect method connects to the server and sets up a callback function to be executed once the connection is established. Within the callback, the client subscribes to the /topic/greetings destination to listen for messages.
+Connect to the server: javascript 
+
+stompClient.connect({}, function (frame) { setConnected(true); console.log('Connected: ' + frame);
+
+stompClient.subscribe('/topic/greetings', function (greeting) { showGreeting(JSON.parse(greeting.body).content); }); });
+
+The connect method connects to the server and sets up a callback function to be executed once the connection is established. Within the callback, the client subscribes to the /topic/greetings destination to listen for messages.
 
 2. Server Receives the Connection Request
+
 Server-Side (WebSocketConfig.java)
+
 WebSocketConfig class:
+
    @Configuration
    @EnableWebSocketMessageBroker
    public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
@@ -50,10 +62,19 @@ WebSocketConfig class:
    }
 
 @EnableWebSocketMessageBroker: Enables WebSocket message handling and configures a message broker.
-configureMessageBroker(MessageBrokerRegistry config): Configures the message broker to handle messages to destinations prefixed with /topic and /app.
-registerStompEndpoints(StompEndpointRegistry registry): Registers the /gs-guide-websocket endpoint, enabling SockJS fallback options.
+
+configureMessageBroker(MessageBrokerRegistry config): 
+
+Configures the message broker to handle messages to destinations prefixed with /topic and /app.
+
+registerStompEndpoints(StompEndpointRegistry registry): 
+
+Registers the /gs-guide-websocket endpoint, enabling SockJS fallback options.
+
 3. Client Sends a Message to the Server
+
 Client-Side (index.html)
+
 User enters a name and clicks the "Send" button:
    <input type="text" id="name" placeholder="Enter your name"/>
    <button onclick="sendName();">Send</button>
@@ -62,10 +83,16 @@ JavaScript sendName() function is called:
        var name = document.getElementById('name').value;
        stompClient.send('/app/hello', {}, JSON.stringify({'name': name}));
    }
-stompClient.send('/app/hello', {}, JSON.stringify({'name': name}));: Sends a message to the /app/hello destination with the user's name in JSON format.
+stompClient.send('/app/hello', {}, JSON.stringify({'name': name}));
+
+: Sends a message to the /app/hello destination with the user's name in JSON format.
+
 4. Server Receives the Message and Processes It
+
 Server-Side (GreetingController.java)
+
 GreetingController class:
+
    @Controller
    public class GreetingController {
 
@@ -76,20 +103,32 @@ GreetingController class:
            return new Greeting("Hello, " + HtmlUtils.htmlEscape(message.getName()) + "!");
        }
    }
+
 @MessageMapping("/hello"): Maps messages sent to /app/hello to the greeting method.
+
 @SendTo("/topic/greetings"): The return value of this method is sent to all clients subscribed to /topic/greetings.
+
 Message Processing:
+
 The greeting method receives the message, simulates a delay (to mimic processing time), and constructs a Greeting object with a personalized message.
+
 5. Server Sends a Response to Subscribed Clients
+
 The Greeting object is sent to /topic/greetings:
+
 Any client subscribed to /topic/greetings will receive this message.
+
 6. Client Receives the Response and Updates the UI
+
 Client-Side (index.html)
+
 JavaScript callback function handles the incoming message:
    stompClient.subscribe('/topic/greetings', function (greeting) {
        showGreeting(JSON.parse(greeting.body).content);
    });
+
 The subscribe method registers a callback function to handle messages received from /topic/greetings.
+
 JavaScript showGreeting() function updates the UI:
    function showGreeting(message) {
        var response = document.getElementById('response');
@@ -97,17 +136,28 @@ JavaScript showGreeting() function updates the UI:
        p.appendChild(document.createTextNode(message));
        response.appendChild(p);
    }
+
 This function creates a new paragraph element, sets its text content to the received message, and appends it to the response div.
+
 Summary of the Flow
 Connection Establishment:
+
 The client connects to the WebSocket server via the /gs-guide-websocket endpoint.
+
 The server accepts the connection and sets up the message broker.
+
 Message Sending:
+
 The client sends a message (user's name) to the /app/hello destination.
+
 The server receives the message and processes it.
+
 Message Broadcasting:
+
 The server sends a response message to the /topic/greetings destination.
+
 All clients subscribed to /topic/greetings receive the message.
 UI Update:
+
 The client displays the received message in the UI.
 This flow ensures real-time communication between the client and server using WebSocket and STOMP, providing a seamless experience for broadcasting and receiving messages.
