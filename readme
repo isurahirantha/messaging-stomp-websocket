@@ -1,0 +1,224 @@
+Step 1: Setting Up the Spring Boot Project
+First, create a Spring Boot project with the necessary dependencies: Spring Web, Spring WebSocket, and Spring Boot Actuator.
+
+Step 2: Configuring WebSocket in Spring Boot
+WebSocketConfig Class
+-----------------------------------------------------------------------------
+package com.example.demo;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        config.enableSimpleBroker("/topic");
+        config.setApplicationDestinationPrefixes("/app");
+    }
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/gs-guide-websocket").withSockJS();
+    }
+}
+
+-----------------------------------------------------------------------------
+
+Annotations:
+
+@Configuration: Marks this class as a source of bean definitions.
+@EnableWebSocketMessageBroker: Enables WebSocket message handling, backed by a message broker.
+Methods:
+
+configureMessageBroker(MessageBrokerRegistry config):
+
+config.enableSimpleBroker("/topic"): Enables a simple in-memory message broker and configures it to handle messages with destinations prefixed with /topic.
+config.setApplicationDestinationPrefixes("/app"): Designates /app as the prefix for messages bound for methods annotated with @MessageMapping.
+registerStompEndpoints(StompEndpointRegistry registry):
+
+registry.addEndpoint("/gs-guide-websocket").withSockJS(): Registers an endpoint that clients will use to connect to the WebSocket server. .withSockJS() enables fallback options for browsers that don’t support WebSocket.
+Step 3: Creating a Message Handling Controller
+GreetingController Class
+-----------------------------------------------------------------------------
+package com.example.demo;
+
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.util.HtmlUtils;
+
+@Controller
+public class GreetingController {
+
+    @MessageMapping("/hello")
+    @SendTo("/topic/greetings")
+    public Greeting greeting(Message message) throws Exception {
+        Thread.sleep(1000); // Simulated delay
+        return new Greeting("Hello, " + HtmlUtils.htmlEscape(message.getName()) + "!");
+    }
+}
+-----------------------------------------------------------------------------
+
+Annotations:
+
+@Controller: Marks this class as a Spring MVC controller.
+Methods:
+
+@MessageMapping("/hello"): Indicates that if a message is sent to the destination /app/hello, it should be routed to this method.
+@SendTo("/topic/greetings"): The return value of this method will be sent to all subscribers of /topic/greetings.
+Logic:
+
+The method simulates a delay (Thread.sleep(1000)) to mimic processing time.
+It returns a new Greeting object with a message that includes the name from the Message object, escaped to prevent HTML injection.
+Message Class
+-----------------------------------------------------------------------------
+package com.example.demo;
+
+public class Message {
+    private String name;
+
+    public Message() {}
+
+    public Message(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+}
+-----------------------------------------------------------------------------
+
+Represents a message sent from the client to the server. It contains a single field, name.
+Greeting Class
+-----------------------------------------------------------------------------
+package com.example.demo;
+
+public class Greeting {
+    private String content;
+
+    public Greeting() {}
+
+    public Greeting(String content) {
+        this.content = content;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+}
+-----------------------------------------------------------------------------
+
+Represents a greeting message sent from the server to the client. It contains a single field, content.
+Step 4: Creating the Client-Side HTML and JavaScript
+index.html
+-----------------------------------------------------------------------------
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Example</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.4.0/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script>
+        var stompClient = null;
+
+        function setConnected(connected) {
+            document.getElementById('connect').disabled = connected;
+            document.getElementById('disconnect').disabled = !connected;
+            document.getElementById('conversationDiv').style.visibility = connected ? 'visible' : 'hidden';
+            document.getElementById('response').innerHTML = '';
+        }
+
+        function connect() {
+            var socket = new SockJS('/gs-guide-websocket');
+            stompClient = Stomp.over(socket);
+            stompClient.connect({}, function (frame) {
+                setConnected(true);
+                console.log('Connected: ' + frame);
+                stompClient.subscribe('/topic/greetings', function (greeting) {
+                    showGreeting(JSON.parse(greeting.body).content);
+                });
+            });
+        }
+
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+            }
+            setConnected(false);
+            console.log('Disconnected');
+        }
+
+        function sendName() {
+            var name = document.getElementById('name').value;
+            stompClient.send('/app/hello', {}, JSON.stringify({'name': name}));
+        }
+
+        function showGreeting(message) {
+            var response = document.getElementById('response');
+            var p = document.createElement('p');
+            p.appendChild(document.createTextNode(message));
+            response.appendChild(p);
+        }
+    </script>
+</head>
+<body>
+    <div>
+        <button id="connect" onclick="connect();">Connect</button>
+        <button id="disconnect" onclick="disconnect();" disabled="disabled">Disconnect</button>
+    </div>
+    <div id="conversationDiv" style="visibility: hidden;">
+        <input type="text" id="name" placeholder="Enter your name"/>
+        <button onclick="sendName();">Send</button>
+        <div id="response"></div>
+    </div>
+</body>
+</html>
+-----------------------------------------------------------------------------
+JavaScript Libraries:
+
+SockJS: A JavaScript library that provides a WebSocket-like object to browsers.
+Stomp.js: A JavaScript library to communicate with STOMP servers over WebSocket.
+JavaScript Functions:
+
+setConnected(connected): Updates the UI to reflect the connection status.
+connect(): Establishes a connection to the WebSocket server, subscribes to /topic/greetings, and updates the UI.
+disconnect(): Disconnects from the WebSocket server and updates the UI.
+sendName(): Sends the name entered by the user to the server using the /app/hello destination.
+showGreeting(message): Displays the greeting message received from the server in the UI.
+Step 5: Running the Application
+Build and Run the Application:
+
+Open a terminal and navigate to your project directory.
+Run the command: mvn spring-boot:run.
+Open the Application in a Browser:
+
+Open a web browser and go to http://localhost:8080.
+Click the "Connect" button to establish a WebSocket connection.
+Enter your name and click "Send" to send a message.
+You should see the greeting message appear on the screen.
+Summary
+WebSocket Configuration:
+
+The WebSocketConfig class configures the WebSocket message broker and registers an endpoint for client connections.
+Message Handling:
+
+The GreetingController class handles incoming messages sent to /app/hello and broadcasts responses to /topic/greetings.
+Client-Side Implementation:
+
+The index.html file provides the UI and JavaScript to connect to the WebSocket server, send messages, and display responses.
+This detailed explanation covers the logic and code behind setting up a simple WebSocket application using Spring Boot and STOMP. You can further extend this example by adding more features, such as user authentication or advanced message handling.
